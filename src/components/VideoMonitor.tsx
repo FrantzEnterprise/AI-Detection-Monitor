@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
-import { Play, Square, Eye, Mic, Bot, AlertTriangle, CheckCircle, Clock, Minimize2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Play, Square, Eye, Mic, Bot, AlertTriangle, CheckCircle, Clock, Minimize2, Monitor } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { VideoMonitor as VideoMonitorClass, VideoAnalysisResult } from '../utils/videoAnalysis'
+import { WidgetStateManager } from '../utils/crossPageCommunication'
+import PageSelector from './PageSelector'
 
 interface VideoMonitorProps {
   onBackgroundModeChange?: (isBackground: boolean) => void
@@ -13,6 +15,33 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
   const [currentAnalysis, setCurrentAnalysis] = useState<VideoAnalysisResult | null>(null)
   const [analysisHistory, setAnalysisHistory] = useState<VideoAnalysisResult[]>([])
   const [notifications, setNotifications] = useState<string[]>([])
+  const [showPageSelector, setShowPageSelector] = useState(false)
+  const [selectedPage, setSelectedPage] = useState<{ url: string; platform: string } | null>(null)
+  const [monitoringDisabled, setMonitoringDisabled] = useState(false)
+
+  // Load saved state on component mount
+  useEffect(() => {
+    const savedState = WidgetStateManager.loadState()
+    if (savedState) {
+      setMonitoringDisabled(savedState.monitoringDisabled || false)
+      setIsMonitoring(savedState.isMonitoring && !savedState.monitoringDisabled)
+      if (savedState.isMonitoring && !savedState.monitoringDisabled) {
+        // Resume monitoring if it was active
+        startMonitoring()
+      }
+    }
+  }, [])
+
+  // Save state whenever monitoring state changes
+  useEffect(() => {
+    WidgetStateManager.saveState({
+      isMonitoring,
+      isMinimized: false,
+      position: { x: 20, y: 20 },
+      currentAnalysis,
+      monitoringDisabled
+    })
+  }, [isMonitoring, currentAnalysis, monitoringDisabled])
 
   const startMonitoring = async () => {
     try {
@@ -37,6 +66,7 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
         }
       })
       setIsMonitoring(true)
+      setMonitoringDisabled(false)
       onBackgroundModeChange?.(true)
     } catch (error) {
       console.error('Failed to start monitoring:', error)
@@ -47,8 +77,22 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
   const stopMonitoring = () => {
     videoMonitor.stopMonitoring()
     setIsMonitoring(false)
+    setMonitoringDisabled(true)
     setCurrentAnalysis(null)
     onBackgroundModeChange?.(false)
+  }
+
+  const handleSelectPage = () => {
+    setShowPageSelector(true)
+  }
+
+  const handlePageSelected = (url: string, platform: string) => {
+    setSelectedPage({ url, platform })
+    setShowPageSelector(false)
+    // Start monitoring automatically when page is selected
+    if (!isMonitoring && !monitoringDisabled) {
+      startMonitoring()
+    }
   }
 
   const DetectionCard = ({ title, detection, icon: Icon, color }: any) => (
@@ -108,26 +152,38 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-white text-3xl font-bold mb-2">YouTube Video Monitor</h1>
+            <h1 className="text-white text-3xl font-bold mb-2">Cross-Page AI Monitor</h1>
             <p className="text-white text-opacity-70 text-lg">
-              Real-time AI detection for video and audio content
+              Monitor any website with floating widget technology
             </p>
           </div>
           
-          {/* Background Mode Indicator */}
-          {isMonitoring && (
+          {/* Monitoring Status */}
+          {(isMonitoring || selectedPage) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="glass-effect rounded-lg p-3 border border-green-500 border-opacity-50"
+              className={`glass-effect rounded-lg p-3 border ${
+                isMonitoring 
+                  ? 'border-green-500 border-opacity-50' 
+                  : 'border-yellow-500 border-opacity-50'
+              }`}
             >
               <div className="flex items-center">
-                <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
-                <p className="text-green-400 text-sm font-medium">Background Mode Ready</p>
+                <div className={`w-2 h-2 rounded-full mr-2 ${
+                  isMonitoring ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'
+                }`} />
+                <p className={`text-sm font-medium ${
+                  isMonitoring ? 'text-green-400' : 'text-yellow-400'
+                }`}>
+                  {isMonitoring ? 'Monitoring Active' : 'Ready to Monitor'}
+                </p>
               </div>
-              <p className="text-white text-opacity-70 text-xs mt-1">
-                Minimize to continue monitoring in background
-              </p>
+              {selectedPage && (
+                <p className="text-white text-opacity-70 text-xs mt-1">
+                  Target: {selectedPage.platform}
+                </p>
+              )}
             </motion.div>
           )}
         </div>
@@ -143,47 +199,61 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
             <div className={`px-3 py-1 rounded-full text-sm font-medium ${
               isMonitoring 
                 ? 'bg-green-500 bg-opacity-20 text-green-300' 
+                : monitoringDisabled
+                ? 'bg-red-500 bg-opacity-20 text-red-300'
                 : 'bg-gray-500 bg-opacity-20 text-gray-300'
             }`}>
-              {isMonitoring ? 'ACTIVE' : 'INACTIVE'}
+              {isMonitoring ? 'ACTIVE' : monitoringDisabled ? 'DISABLED' : 'INACTIVE'}
             </div>
           </div>
           
-          <div className="flex space-x-4">
+          <div className="flex flex-wrap gap-3">
             <button
-              onClick={isMonitoring ? stopMonitoring : startMonitoring}
-              className={`flex items-center px-5 py-3 rounded-lg font-medium transition-all ${
-                isMonitoring 
-                  ? 'bg-red-500 hover:bg-red-600 text-white' 
-                  : 'bg-green-500 hover:bg-green-600 text-white'
-              }`}
+              onClick={handleSelectPage}
+              className="flex items-center px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all"
             >
-              {isMonitoring ? (
-                <Square className="w-4 h-4 mr-2" />
-              ) : (
-                <Play className="w-4 h-4 mr-2" />
-              )}
-              {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
+              <Monitor className="w-4 h-4 mr-2" />
+              Select Page to Monitor
             </button>
+
+            {selectedPage && (
+              <button
+                onClick={isMonitoring ? stopMonitoring : startMonitoring}
+                className={`flex items-center px-5 py-3 rounded-lg font-medium transition-all ${
+                  isMonitoring 
+                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
+              >
+                {isMonitoring ? (
+                  <Square className="w-4 h-4 mr-2" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
+              </button>
+            )}
 
             {isMonitoring && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex items-center px-4 py-3 bg-blue-500 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30"
+                className="flex items-center px-4 py-3 bg-purple-500 bg-opacity-20 rounded-lg border border-purple-500 border-opacity-30"
               >
-                <Minimize2 className="w-4 h-4 text-blue-400 mr-2" />
-                <span className="text-blue-300 text-sm font-medium">
-                  Click minimize to run in background
+                <Minimize2 className="w-4 h-4 text-purple-400 mr-2" />
+                <span className="text-purple-300 text-sm font-medium">
+                  Widget active on target page
                 </span>
               </motion.div>
             )}
           </div>
           
           <p className="text-white text-opacity-70 text-sm mt-3">
-            {isMonitoring 
-              ? 'Monitoring active - analyzing video and audio content every 5 seconds. You can minimize this window to continue monitoring in the background.'
-              : 'Click "Start Monitoring" and allow screen capture to begin YouTube analysis'
+            {!selectedPage 
+              ? 'Select a page to monitor, then the floating widget will appear on that page for continuous monitoring.'
+              : isMonitoring 
+              ? `Monitoring ${selectedPage.platform} - floating widget is active on the target page.`
+              : `Ready to monitor ${selectedPage.platform}. Click "Start Monitoring" to activate the floating widget.`
             }
           </p>
         </motion.div>
@@ -235,7 +305,7 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
               
               {currentAnalysis.videoTitle && (
                 <div className="mb-4">
-                  <p className="text-white text-opacity-70 text-sm mb-1">Video Title</p>
+                  <p className="text-white text-opacity-70 text-sm mb-1">Content Source</p>
                   <p className="text-white font-medium">{currentAnalysis.videoTitle}</p>
                 </div>
               )}
@@ -277,7 +347,7 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
                 <div key={analysis.id} className="flex items-center justify-between p-3 bg-white bg-opacity-5 rounded-lg">
                   <div className="flex-1">
                     <p className="text-white font-medium text-sm">
-                      {analysis.videoTitle || 'Unknown Video'}
+                      {analysis.videoTitle || 'Unknown Content'}
                     </p>
                     <p className="text-white text-opacity-50 text-xs mt-1">
                       {analysis.timestamp.toLocaleString()}
@@ -306,24 +376,35 @@ const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) =
         )}
 
         {/* Instructions */}
-        {!isMonitoring && (
+        {!selectedPage && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="glass-effect rounded-xl p-6 border border-blue-500 border-opacity-50"
           >
-            <h3 className="text-white text-lg font-semibold mb-3">How to Use Background Monitoring</h3>
+            <h3 className="text-white text-lg font-semibold mb-3">How Cross-Page Monitoring Works</h3>
             <div className="space-y-2 text-white text-opacity-70 text-sm">
-              <p>1. Navigate to a YouTube video in your browser</p>
-              <p>2. Click "Start Monitoring" and allow screen capture permission</p>
-              <p>3. Click the minimize button (top-right) to switch to floating widget mode</p>
-              <p>4. The floating widget will continue monitoring in the background</p>
-              <p>5. Click the floating widget to expand back to full controls</p>
-              <p>6. Real-time notifications will appear for any AI/bot content detected</p>
+              <p>1. Click "Select Page to Monitor" to choose your target website</p>
+              <p>2. The target page will open in a new tab with the floating widget injected</p>
+              <p>3. The floating widget will monitor content on that specific page</p>
+              <p>4. Real-time notifications will appear for any AI/bot content detected</p>
+              <p>5. You can expand the widget or return here for detailed analysis</p>
+              <p>6. Monitoring state persists even when you navigate away from this page</p>
             </div>
           </motion.div>
         )}
       </motion.div>
+
+      {/* Page Selector Modal */}
+      <AnimatePresence>
+        {showPageSelector && (
+          <PageSelector
+            onPageSelected={handlePageSelected}
+            onClose={() => setShowPageSelector(false)}
+            isMonitoringActive={isMonitoring}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
