@@ -1,9 +1,13 @@
 import React, { useState } from 'react'
-import { Play, Square, Eye, Mic, Bot, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
+import { Play, Square, Eye, Mic, Bot, AlertTriangle, CheckCircle, Clock, Minimize2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { VideoMonitor as VideoMonitorClass, VideoAnalysisResult } from '../utils/videoAnalysis'
 
-const VideoMonitor: React.FC = () => {
+interface VideoMonitorProps {
+  onBackgroundModeChange?: (isBackground: boolean) => void
+}
+
+const VideoMonitor: React.FC<VideoMonitorProps> = ({ onBackgroundModeChange }) => {
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [videoMonitor] = useState(new VideoMonitorClass())
   const [currentAnalysis, setCurrentAnalysis] = useState<VideoAnalysisResult | null>(null)
@@ -33,6 +37,7 @@ const VideoMonitor: React.FC = () => {
         }
       })
       setIsMonitoring(true)
+      onBackgroundModeChange?.(true)
     } catch (error) {
       console.error('Failed to start monitoring:', error)
       alert('Please allow screen capture permission to monitor YouTube videos')
@@ -43,6 +48,7 @@ const VideoMonitor: React.FC = () => {
     videoMonitor.stopMonitoring()
     setIsMonitoring(false)
     setCurrentAnalysis(null)
+    onBackgroundModeChange?.(false)
   }
 
   const DetectionCard = ({ title, detection, icon: Icon, color }: any) => (
@@ -100,11 +106,30 @@ const VideoMonitor: React.FC = () => {
         animate={{ opacity: 1 }}
         className="space-y-6"
       >
-        <div>
-          <h1 className="text-white text-3xl font-bold mb-2">YouTube Video Monitor</h1>
-          <p className="text-white text-opacity-70 text-lg">
-            Real-time AI detection for video and audio content
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-3xl font-bold mb-2">YouTube Video Monitor</h1>
+            <p className="text-white text-opacity-70 text-lg">
+              Real-time AI detection for video and audio content
+            </p>
+          </div>
+          
+          {/* Background Mode Indicator */}
+          {isMonitoring && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-effect rounded-lg p-3 border border-green-500 border-opacity-50"
+            >
+              <div className="flex items-center">
+                <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
+                <p className="text-green-400 text-sm font-medium">Background Mode Ready</p>
+              </div>
+              <p className="text-white text-opacity-70 text-xs mt-1">
+                Minimize to continue monitoring in background
+              </p>
+            </motion.div>
+          )}
         </div>
 
         {/* Control Panel */}
@@ -140,11 +165,24 @@ const VideoMonitor: React.FC = () => {
               )}
               {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
             </button>
+
+            {isMonitoring && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center px-4 py-3 bg-blue-500 bg-opacity-20 rounded-lg border border-blue-500 border-opacity-30"
+              >
+                <Minimize2 className="w-4 h-4 text-blue-400 mr-2" />
+                <span className="text-blue-300 text-sm font-medium">
+                  Click minimize to run in background
+                </span>
+              </motion.div>
+            )}
           </div>
           
           <p className="text-white text-opacity-70 text-sm mt-3">
             {isMonitoring 
-              ? 'Monitoring active - analyzing video and audio content every 5 seconds'
+              ? 'Monitoring active - analyzing video and audio content every 5 seconds. You can minimize this window to continue monitoring in the background.'
               : 'Click "Start Monitoring" and allow screen capture to begin YouTube analysis'
             }
           </p>
@@ -274,13 +312,14 @@ const VideoMonitor: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="glass-effect rounded-xl p-6 border border-blue-500 border-opacity-50"
           >
-            <h3 className="text-white text-lg font-semibold mb-3">How to Use</h3>
+            <h3 className="text-white text-lg font-semibold mb-3">How to Use Background Monitoring</h3>
             <div className="space-y-2 text-white text-opacity-70 text-sm">
               <p>1. Navigate to a YouTube video in your browser</p>
               <p>2. Click "Start Monitoring" and allow screen capture permission</p>
-              <p>3. The app will analyze video and audio content every 5 seconds</p>
-              <p>4. Real-time notifications will appear for any AI/bot content detected</p>
-              <p>5. View detailed analysis results and confidence scores</p>
+              <p>3. Click the minimize button (top-right) to switch to floating widget mode</p>
+              <p>4. The floating widget will continue monitoring in the background</p>
+              <p>5. Click the floating widget to expand back to full controls</p>
+              <p>6. Real-time notifications will appear for any AI/bot content detected</p>
             </div>
           </motion.div>
         )}
