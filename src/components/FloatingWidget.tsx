@@ -1,292 +1,283 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Shield, Eye, AlertTriangle, CheckCircle, Activity, Maximize2, X } from 'lucide-react'
-import { VideoMonitor as VideoMonitorClass, VideoAnalysisResult } from '../utils/videoAnalysis'
-import { useDetectionStore } from '../store/detectionStore'
+import { 
+  Brain, 
+  Video, 
+  Music, 
+  FileText, 
+  ChevronUp, 
+  ChevronDown,
+  Settings,
+  Minimize2,
+  Maximize2,
+  X,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
+  Eye,
+  EyeOff
+} from 'lucide-react'
+import { useAIDetection } from '../contexts/AIDetectionContext'
 
 interface FloatingWidgetProps {
-  onExpand: () => void
-  isBackgroundMonitoring: boolean
+  onOpenSettings: () => void
 }
 
-const FloatingWidget: React.FC<FloatingWidgetProps> = ({ onExpand, isBackgroundMonitoring }) => {
-  const [isMonitoring, setIsMonitoring] = useState(false)
-  const [videoMonitor] = useState(new VideoMonitorClass())
-  const [currentAnalysis, setCurrentAnalysis] = useState<VideoAnalysisResult | null>(null)
-  const [recentDetections, setRecentDetections] = useState<string[]>([])
-  const [showNotification, setShowNotification] = useState(false)
-  const [position, setPosition] = useState({ x: 20, y: 20 })
-  const { stats } = useDetectionStore()
+export default function FloatingWidget({ onOpenSettings }: FloatingWidgetProps) {
+  const [isExpanded, setIsExpanded] = useState(true)
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const { detections, stats, isScanning, setIsScanning } = useAIDetection()
 
+  // Simulated real-time detection data
+  const [videoAI, setVideoAI] = useState(23)
+  const [audioAI, setAudioAI] = useState(67)
+  const [textAI, setTextAI] = useState(45)
+
+  // Simulate real-time updates
   useEffect(() => {
-    // Auto-start monitoring when widget loads if background monitoring was active
-    if (isBackgroundMonitoring && !isMonitoring) {
-      startMonitoring()
-    }
-  }, [isBackgroundMonitoring])
+    if (!isScanning) return
 
-  const startMonitoring = async () => {
-    try {
-      await videoMonitor.startMonitoring((result) => {
-        setCurrentAnalysis(result)
-        
-        // Check for new detections
-        const newDetections: string[] = []
-        if (result.detections.aiVideo.detected) {
-          newDetections.push(`AI Video (${Math.round(result.detections.aiVideo.confidence * 100)}%)`)
-        }
-        if (result.detections.aiAudio.detected) {
-          newDetections.push(`AI Audio (${Math.round(result.detections.aiAudio.confidence * 100)}%)`)
-        }
-        if (result.detections.botContent.detected) {
-          newDetections.push(`Bot Content (${Math.round(result.detections.botContent.confidence * 100)}%)`)
-        }
-        
-        if (newDetections.length > 0) {
-          setRecentDetections(prev => [...newDetections, ...prev.slice(0, 4)])
-          setShowNotification(true)
-          setTimeout(() => setShowNotification(false), 3000)
-        }
-      })
-      setIsMonitoring(true)
-    } catch (error) {
-      console.error('Failed to start monitoring:', error)
-    }
+    const interval = setInterval(() => {
+      setVideoAI(prev => Math.max(0, Math.min(100, prev + (Math.random() - 0.5) * 10)))
+      setAudioAI(prev => Math.max(0, Math.min(100, prev + (Math.random() - 0.5) * 8)))
+      setTextAI(prev => Math.max(0, Math.min(100, prev + (Math.random() - 0.5) * 12)))
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [isScanning])
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence < 30) return 'text-green-400'
+    if (confidence < 70) return 'text-yellow-400'
+    return 'text-red-400'
   }
 
-  const stopMonitoring = () => {
-    videoMonitor.stopMonitoring()
-    setIsMonitoring(false)
-    setCurrentAnalysis(null)
+  const getConfidenceGradient = (confidence: number) => {
+    if (confidence < 30) return 'from-green-500 to-green-400'
+    if (confidence < 70) return 'from-yellow-500 to-yellow-400'
+    return 'from-red-500 to-red-400'
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement
-    if (target.closest('button')) return // Don't drag when clicking buttons
-    
-    const rect = e.currentTarget.getBoundingClientRect()
-    const offsetX = e.clientX - rect.left
-    const offsetY = e.clientY - rect.top
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newX = Math.max(0, Math.min(window.innerWidth - 320, e.clientX - offsetX))
-      const newY = Math.max(0, Math.min(window.innerHeight - 200, e.clientY - offsetY))
-      setPosition({ x: newX, y: newY })
-    }
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+  const getRiskLevel = (confidence: number) => {
+    if (confidence < 30) return 'Low Risk'
+    if (confidence < 70) return 'Medium Risk'
+    return 'High Risk'
   }
 
-  const hasActiveDetections = currentAnalysis && (
-    currentAnalysis.detections.aiVideo.detected ||
-    currentAnalysis.detections.aiAudio.detected ||
-    currentAnalysis.detections.botContent.detected
-  )
+  if (isMinimized) {
+    return (
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="fixed bottom-6 right-6 z-50"
+      >
+        <motion.button
+          onClick={() => setIsMinimized(false)}
+          className="w-14 h-14 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full shadow-2xl flex items-center justify-center text-white hover:shadow-blue-500/25 transition-all"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Brain className="w-7 h-7" />
+          {isScanning && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
+          )}
+        </motion.button>
+      </motion.div>
+    )
+  }
 
   return (
-    <>
-      {/* Floating Widget */}
+    <motion.div
+      initial={{ x: 100, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      className="fixed bottom-6 right-6 z-50"
+    >
       <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.8 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className={`fixed z-50 w-80 glass-effect rounded-xl border-2 ${
-          hasActiveDetections ? 'border-red-500 border-opacity-50' : 'border-white border-opacity-20'
-        } cursor-move select-none`}
-        style={{ 
-          right: position.x, 
-          bottom: position.y,
-          backdropFilter: 'blur(20px)',
-          background: 'rgba(0, 0, 0, 0.8)'
-        }}
-        onMouseDown={handleMouseDown}
+        className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ width: isExpanded ? '320px' : '280px' }}
+        layout
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white border-opacity-10">
-          <div 
-            className="flex items-center flex-1 cursor-pointer"
-            onClick={onExpand}
-          >
-            <div className={`p-2 rounded-lg mr-2 ${
-              hasActiveDetections ? 'bg-red-500 bg-opacity-20' : 'bg-blue-500 bg-opacity-20'
-            }`}>
-              <Shield className={`w-4 h-4 ${
-                hasActiveDetections ? 'text-red-400' : 'text-blue-400'
-              }`} />
-            </div>
-            <div>
-              <h3 className="text-white text-sm font-bold">AI Detector</h3>
-              <p className={`text-xs ${
-                isMonitoring ? 'text-green-400' : 'text-white text-opacity-50'
-              }`}>
-                {isMonitoring ? 'Monitoring Active' : 'Click to expand'}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onExpand()
-              }}
-              className="p-1.5 bg-white bg-opacity-10 rounded hover:bg-opacity-20 transition-all"
-              title="Expand to full window"
-            >
-              <Maximize2 className="w-3 h-3 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 space-y-3">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-white bg-opacity-5 rounded-lg p-2">
-              <p className="text-white text-lg font-bold">{stats.totalAnalyzed}</p>
-              <p className="text-white text-opacity-70 text-xs">Total</p>
-            </div>
-            <div className="bg-white bg-opacity-5 rounded-lg p-2">
-              <p className="text-red-400 text-lg font-bold">{stats.aiDetected}</p>
-              <p className="text-white text-opacity-70 text-xs">AI Found</p>
-            </div>
-            <div className="bg-white bg-opacity-5 rounded-lg p-2">
-              <p className="text-green-400 text-lg font-bold">{stats.humanDetected}</p>
-              <p className="text-white text-opacity-70 text-xs">Human</p>
-            </div>
-          </div>
-
-          {/* Current Status */}
-          {currentAnalysis ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-white text-xs font-medium">Latest Analysis</p>
-                <p className="text-white text-opacity-50 text-xs">
-                  {currentAnalysis.timestamp.toLocaleTimeString()}
-                </p>
+        <div className="bg-gradient-to-r from-blue-600/20 to-cyan-500/20 border-b border-slate-700/50 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                <Brain className="w-5 h-5 text-white" />
               </div>
-              
-              <div className="space-y-1">
-                {currentAnalysis.detections.aiVideo.detected && (
-                  <div className="flex items-center justify-between bg-red-500 bg-opacity-10 rounded px-2 py-1">
-                    <div className="flex items-center">
-                      <Eye className="w-3 h-3 text-red-400 mr-1" />
-                      <span className="text-red-300 text-xs">AI Video</span>
-                    </div>
-                    <span className="text-red-300 text-xs font-medium">
-                      {Math.round(currentAnalysis.detections.aiVideo.confidence * 100)}%
-                    </span>
-                  </div>
-                )}
-                
-                {currentAnalysis.detections.aiAudio.detected && (
-                  <div className="flex items-center justify-between bg-orange-500 bg-opacity-10 rounded px-2 py-1">
-                    <div className="flex items-center">
-                      <Activity className="w-3 h-3 text-orange-400 mr-1" />
-                      <span className="text-orange-300 text-xs">AI Audio</span>
-                    </div>
-                    <span className="text-orange-300 text-xs font-medium">
-                      {Math.round(currentAnalysis.detections.aiAudio.confidence * 100)}%
-                    </span>
-                  </div>
-                )}
-                
-                {currentAnalysis.detections.botContent.detected && (
-                  <div className="flex items-center justify-between bg-purple-500 bg-opacity-10 rounded px-2 py-1">
-                    <div className="flex items-center">
-                      <AlertTriangle className="w-3 h-3 text-purple-400 mr-1" />
-                      <span className="text-purple-300 text-xs">Bot Content</span>
-                    </div>
-                    <span className="text-purple-300 text-xs font-medium">
-                      {Math.round(currentAnalysis.detections.botContent.confidence * 100)}%
-                    </span>
-                  </div>
-                )}
-                
-                {!hasActiveDetections && (
-                  <div className="flex items-center justify-center bg-green-500 bg-opacity-10 rounded px-2 py-1">
-                    <CheckCircle className="w-3 h-3 text-green-400 mr-1" />
-                    <span className="text-green-300 text-xs">Content Clean</span>
-                  </div>
-                )}
+              <div>
+                <h3 className="text-white font-semibold text-sm">AI Monitor</h3>
+                <p className="text-slate-400 text-xs">Real-time Detection</p>
               </div>
             </div>
-          ) : (
-            <div className="text-center py-2">
-              <p className="text-white text-opacity-50 text-xs">
-                {isMonitoring ? 'Waiting for analysis...' : 'Click to start monitoring'}
-              </p>
-            </div>
-          )}
-
-          {/* Control Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              isMonitoring ? stopMonitoring() : startMonitoring()
-            }}
-            className={`w-full py-2 rounded-lg text-xs font-medium transition-all ${
-              isMonitoring 
-                ? 'bg-red-500 hover:bg-red-600 text-white' 
-                : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
-          >
-            {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
-          </button>
-        </div>
-      </motion.div>
-
-      {/* Notification Toast */}
-      <AnimatePresence>
-        {showNotification && recentDetections.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, x: 400 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 400 }}
-            className="fixed top-4 right-4 z-50 glass-effect rounded-lg p-4 border border-red-500 border-opacity-50 max-w-sm"
-            style={{ 
-              backdropFilter: 'blur(20px)',
-              background: 'rgba(0, 0, 0, 0.9)'
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center">
-                <AlertTriangle className="w-4 h-4 text-red-400 mr-2" />
-                <h4 className="text-white font-semibold text-sm">AI Content Detected!</h4>
-              </div>
+            <div className="flex items-center space-x-1">
               <button
-                onClick={() => setShowNotification(false)}
-                className="p-1 hover:bg-white hover:bg-opacity-10 rounded"
+                onClick={() => setIsScanning(!isScanning)}
+                className={`p-1.5 rounded-lg transition-all ${
+                  isScanning 
+                    ? 'text-green-400 hover:bg-green-500/10' 
+                    : 'text-slate-400 hover:bg-slate-700/50'
+                }`}
               >
-                <X className="w-3 h-3 text-white text-opacity-70" />
+                {isScanning ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all"
+              >
+                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => setIsMinimized(true)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all"
+              >
+                <Minimize2 className="w-4 h-4" />
               </button>
             </div>
-            <div className="space-y-1">
-              {recentDetections.slice(0, 2).map((detection, index) => (
-                <p key={index} className="text-red-300 text-xs">• {detection}</p>
-              ))}
-            </div>
-            <button
-              onClick={() => {
-                setShowNotification(false)
-                onExpand()
-              }}
-              className="mt-2 text-blue-400 text-xs hover:text-blue-300 transition-colors"
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
             >
-              View Details →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+              {/* Status Indicator */}
+              <div className="p-4 border-b border-slate-700/30">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${isScanning ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                    <span className="text-white text-sm font-medium">
+                      {isScanning ? 'Scanning Active' : 'Scanning Paused'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {stats.totalScanned} scanned
+                  </div>
+                </div>
+              </div>
+
+              {/* Detection Meters */}
+              <div className="p-4 space-y-4">
+                {/* Video AI Detection */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Video className="w-4 h-4 text-red-400" />
+                      <span className="text-white text-sm font-medium">Video AI</span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold ${getConfidenceColor(videoAI)}`}>
+                        {Math.round(videoAI)}%
+                      </span>
+                      <p className="text-xs text-slate-400">{getRiskLevel(videoAI)}</p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-700/50 rounded-full h-2">
+                    <motion.div 
+                      className={`h-2 rounded-full bg-gradient-to-r ${getConfidenceGradient(videoAI)}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${videoAI}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Audio AI Detection */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Music className="w-4 h-4 text-blue-400" />
+                      <span className="text-white text-sm font-medium">Audio AI</span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold ${getConfidenceColor(audioAI)}`}>
+                        {Math.round(audioAI)}%
+                      </span>
+                      <p className="text-xs text-slate-400">{getRiskLevel(audioAI)}</p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-700/50 rounded-full h-2">
+                    <motion.div 
+                      className={`h-2 rounded-full bg-gradient-to-r ${getConfidenceGradient(audioAI)}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${audioAI}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Text AI Detection */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-green-400" />
+                      <span className="text-white text-sm font-medium">Text AI</span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold ${getConfidenceColor(textAI)}`}>
+                        {Math.round(textAI)}%
+                      </span>
+                      <p className="text-xs text-slate-400">{getRiskLevel(textAI)}</p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-700/50 rounded-full h-2">
+                    <motion.div 
+                      className={`h-2 rounded-full bg-gradient-to-r ${getConfidenceGradient(textAI)}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${textAI}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Overall Risk Assessment */}
+              <div className="p-4 border-t border-slate-700/30">
+                <div className="bg-slate-800/50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-slate-300 text-sm">Overall Risk</span>
+                    <div className="flex items-center space-x-1">
+                      {Math.max(videoAI, audioAI, textAI) > 70 ? (
+                        <AlertTriangle className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      )}
+                      <span className={`text-sm font-bold ${getConfidenceColor(Math.max(videoAI, audioAI, textAI))}`}>
+                        {getRiskLevel(Math.max(videoAI, audioAI, textAI))}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Last scan: {new Date().toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="p-4 border-t border-slate-700/30 bg-slate-800/30">
+                <div className="flex items-center justify-between">
+                  <button className="flex items-center space-x-1 px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-300 text-xs transition-all">
+                    <Activity className="w-3 h-3" />
+                    <span>Details</span>
+                  </button>
+                  <button 
+                    onClick={onOpenSettings}
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-300 text-xs transition-all"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>Settings</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   )
 }
-
-export default FloatingWidget
